@@ -29,6 +29,7 @@ GATES=(
   verify_ia_v2.py
   verify_41.py
   verify_partner.py
+  verify_rbac_ui.py
 )
 
 fail=0

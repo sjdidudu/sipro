@@ -13,13 +13,15 @@ import { useAuth } from "@/context/AuthContext";
 import api from "@/services/apiClient";
 import { CHANGE_ORDERS } from "@/constants/testIds";
 
-const CREATE_ROLES = ["owner", "super_admin", "project_manager"];
-const APPROVE_ROLES = ["owner", "super_admin", "finance"];
 
 export default function ChangeOrdersSection({ spk, onChanged }) {
-  const { user } = useAuth();
-  const canCreate = CREATE_ROLES.includes(user?.role);
-  const canApprove = APPROVE_ROLES.includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canCreate = can("change_orders", "create");
+  const canApprove = can("change_orders", "approve");
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);

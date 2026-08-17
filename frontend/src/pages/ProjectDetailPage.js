@@ -20,8 +20,12 @@ import { MASTERPLAN } from "@/constants/testIds";
 export default function ProjectDetailPage() {
   const { id } = useParams();
   const [tab, setTab] = useTabParam("structure");
-  const { user } = useAuth();
-  const canManage = ["owner", "super_admin", "project_manager"].includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canManage = can("projects", "update");
   const [tree, setTree] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

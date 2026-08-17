@@ -76,6 +76,19 @@ def main():
     check("route /partners ada", "/partners" in routes)
     check("halaman kanonik /partners/:id ada", "/partners/:id" in routes)
     check("rute alias /marketing-fee TETAP hidup", "/marketing-fee" in routes)
+    # Alias yang hidup TIDAK cukup: sampai Fase 42 ia me-render halaman Marketing Fee sendiri
+    # LENGKAP DENGAN tab "Master Agen" — jadi ada DUA pintu untuk satu urusan dan DUA master
+    # mitra yang bisa berbeda diam-diam. Sekarang alias wajib MENGALIHKAN ke tab Tagihan Fee
+    # di hub, dan halaman lamanya harus benar-benar hilang (bukan sekadar tidak ditautkan).
+    alias = re.search(r'<Route\s+path="/marketing-fee"\s+element=\{([^}]*)\}', app, re.S)
+    check("alias /marketing-fee MENGALIHKAN ke tab Tagihan Fee (satu pintu)",
+          bool(alias) and "Navigate" in alias.group(1)
+          and "/partners?hub=tagihan" in alias.group(1),
+          alias.group(1)[:80] if alias else "route alias tidak ditemukan")
+    check("halaman Marketing Fee lama sudah dihapus (masternya = Master Mitra)",
+          not (FE / "pages" / "MarketingFeePage.js").exists())
+    check("master agen lama sudah dihapus (tidak ada master mitra kembar)",
+          not (FE / "components" / "marketingFee" / "AgentsPanel.js").exists())
     nav_paths = set(re.findall(r'path:\s*"([^"]+)"', body))
     check("'/marketing-fee' tidak lagi jadi baris sidebar (jadi tab Tagihan Fee)",
           "/marketing-fee" not in nav_paths)
@@ -86,6 +99,12 @@ def main():
           'paramKey="hub"' in read("pages/PartnersPage.js"))
     check("tab Tagihan Fee memakai panel fee yang sudah ada (bukan salinan baru)",
           "FeesPanel" in read("pages/PartnersPage.js"))
+    # Bukan cukup "izinnya disebut di berkas": tab Tagihan Fee harus BENAR-BENAR bersyarat.
+    # Kalau penjaganya dicabut sementara konstantanya dibiarkan, pemeriksaan "memakai izin
+    # efektif" tetap hijau padahal tabnya kembali mati untuk peran tanpa izin fee.
+    check("tab Tagihan Fee hanya tampil bila peran boleh membaca tagihan fee",
+          bool(re.search(r'[A-Za-z_]\w*\s*&&\s*\{\s*key:\s*"tagihan"',
+                         read("pages/PartnersPage.js"))))
     for rel in ("components/partners/PartnersListTab.js", "components/partners/FeeRulesTab.js",
                 "components/partners/PartnerAnalyticsTab.js",
                 "components/partners/ConflictsTab.js", "pages/PartnerProfilePage.js"):
@@ -301,6 +320,11 @@ def main():
         "pages/PartnerProfilePage.js": ['can("partners", "update")'],
         "components/work/AgingReportTab.js": ['can("aging", "manage")'],
         "components/marketingFee/FeesPanel.js": ['can("marketing_fee", "create")'],
+        # Hub Mitra & Fee menyatukan DUA resource: isi tab "Tagihan Fee" dari `marketing_fee`,
+        # sisanya dari `partners`. Tanpa penjagaan ini tab-nya tampil untuk peran yang tidak
+        # punya izin fee lalu isinya dijawab 403 — TAB MATI (Manajer Proyek: punya
+        # `partners:view_all`, TIDAK punya izin `marketing_fee` sama sekali).
+        "pages/PartnersPage.js": ['can("partners", "view")', 'can("marketing_fee", "view")'],
     }
     for rel, wants in PERM_UI.items():
         body = read(rel)
@@ -312,6 +336,18 @@ def main():
                             body))
         for want in wants:
             check(f"{name} memakai izin efektif {want}", want in body)
+
+    # Bukti NYATA bahwa tab "Tagihan Fee" WAJIB disembunyikan dari sebagian peran: Manajer
+    # Proyek boleh membaca mitra tetapi ditolak membaca tagihan fee. Kalau tab-nya tetap
+    # ditampilkan, bookmark lama `/marketing-fee` (kini mengalih ke `?hub=tagihan`) mendarat
+    # tepat di tab yang isinya dijawab 403.
+    pm = login("pm@sipro.co.id")
+    r = requests.get(f"{BASE}/marketing/fees", headers=pm, timeout=30)
+    check("Manajer Proyek DITOLAK membaca tagihan fee (maka tabnya wajib disembunyikan)",
+          r.status_code == 403, f"got {r.status_code}")
+    r = requests.get(f"{BASE}/partners", headers=pm, timeout=30)
+    check("Manajer Proyek tetap boleh membaca mitra (mendarat di tab yang bisa dibuka)",
+          r.status_code == 200, f"got {r.status_code}")
 
     print("-" * 60)
     if fails:

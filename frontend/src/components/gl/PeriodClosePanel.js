@@ -24,8 +24,14 @@ const label = (p) => `${MONTHS[Number(p.slice(5, 7)) - 1]} ${p.slice(0, 4)}`;
  * Membuka kembali periode dibatasi untuk owner/super admin (kontrol SoD).
  */
 export default function PeriodClosePanel() {
-  const { user } = useAuth();
-  const canReopen = ["owner", "super_admin"].includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  // `POST /gl/periods/reopen` menuntut `gl:approve`. Daftar peran lama menyembunyikan
+  // tombol ini dari Manajer Keuangan padahal ia punya `gl:manage` (mencakup approve).
+  const canReopen = can("gl", "approve");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

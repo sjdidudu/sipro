@@ -43,7 +43,7 @@ WAJIB tetap ada).
 | **Perizinan & Dokumen** | **Dokumen** → tab **Perizinan** | `/documents?hub=perizinan` | daftar global izin masuk Dokumen; izin per objek tetap di Unit 360 & Proyek |
 | RAB/BoQ · Subkon & SPK · Pengadaan | Pengadaan (3 item) | `/boq` `/subcon` `/procurement` | tetap |
 | Keuangan | Keuangan › AR / AP / Komisi | `/finance` | tab kini hidup di URL (`?tab=ar`) |
-| Marketing Fee | **CRM › Mitra & Fee → tab “Tagihan Fee”** | `/partners?hub=tagihan` | **Fase 42 SELESAI**: keluar dari sidebar; rute `/marketing-fee` TETAP hidup sebagai alias dan terdaftar di peta menu |
+| Marketing Fee | **CRM › Mitra & Fee → tab “Tagihan Fee”** | `/partners?hub=tagihan` | **Fase 42 SELESAI**: keluar dari sidebar. Rute `/marketing-fee` tetap terdaftar tetapi **MENGALIHKAN** ke tab Tagihan Fee (satu pintu); halaman lama + tab “Master Agen” dihapus karena kembar dengan “Master Mitra” |
 | **Kas Bon** | Keuangan › Kas Bon | `/petty-cash` | pindah dari grup terpisah “Kas & Pengeluaran” |
 | Akuntansi (5 item) | Akuntansi | `/accounting` `/accounting/reports` `/fixed-assets` `/corporate-financing` `/tax` | tetap |
 | Komplain & CS | Layanan › Komplain & CS | `/complaints` | daftar jadi tabel pro + KPI drill-down |

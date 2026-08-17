@@ -16,13 +16,15 @@ import { formatIDR } from "@/utils/formatters";
 import api from "@/services/apiClient";
 import { CLAIMS, OPNAME } from "@/constants/testIds";
 
-const SUBMIT_ROLES = ["owner", "super_admin", "project_manager", "site_engineer"];
-const APPROVE_ROLES = ["owner", "super_admin", "finance"];
 
 export default function ClaimsPanel() {
-  const { user } = useAuth();
-  const canSubmit = SUBMIT_ROLES.includes(user?.role);
-  const canApprove = APPROVE_ROLES.includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canSubmit = can("progress_claims", "create");
+  const canApprove = can("progress_claims", "approve");
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);

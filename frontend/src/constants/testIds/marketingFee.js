@@ -1,8 +1,13 @@
 // Marketing Fee agen/broker/referral (Fase 27) testIds.
+//
+// FASE 42 — halaman `/marketing-fee` DIHAPUS: rutenya kini mengalihkan ke tab "Tagihan Fee"
+// di hub Mitra & Fee (`/partners?hub=tagihan`) supaya tidak ada dua pintu untuk satu urusan.
+// Karena itu testId untuk halaman & tab lama (`page`, `tabFees`, `tabAgents`) dan untuk
+// MASTER AGEN lama (`agent*`) ikut dibuang — masternya sekarang "Master Mitra"
+// (`constants/testIds/partners.js`), yang punya kontrak, status beralasan, dan aturan fee.
+// Panel pengajuan/persetujuan/pembayaran fee (`FeesPanel`) TIDAK berubah: dipakai ulang
+// sebagai isi tab, bukan disalin.
 export const MFEE = {
-  page: "marketing-fee-page",
-  tabFees: "mfee-tab-fees",
-  tabAgents: "mfee-tab-agents",
   summary: "mfee-summary",
   feesPanel: "mfee-fees-panel",
   feeRow: "mfee-fee-row",
@@ -25,23 +30,6 @@ export const MFEE = {
   payAmount: "mfee-pay-amount",
   paySource: "mfee-pay-source",
   payConfirm: "mfee-pay-confirm",
-  detailBtn: "mfee-detail-button",
-  detailSheet: "mfee-detail-sheet",
-  agentsPanel: "mfee-agents-panel",
-  agentRow: "mfee-agent-row",
-  agentsEmpty: "mfee-agents-empty",
-  agentAddBtn: "mfee-agent-add-button",
-  agentDialog: "mfee-agent-dialog",
-  agentName: "mfee-agent-name",
-  agentType: "mfee-agent-type",
-  agentCompany: "mfee-agent-company",
-  agentPhone: "mfee-agent-phone",
-  agentEmail: "mfee-agent-email",
-  agentNpwp: "mfee-agent-npwp",
-  agentBank: "mfee-agent-bank",
-  agentAccount: "mfee-agent-account",
-  agentStatus: "mfee-agent-status",
-  agentSubmit: "mfee-agent-submit",
   leaderboard: "mfee-leaderboard",
   leaderboardRow: "mfee-leaderboard-row",
 };

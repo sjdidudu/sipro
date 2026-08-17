@@ -14,13 +14,15 @@ Keputusan user sesi ini: **Tuntaskan Fase 41 + 42 saja** sampai seluruh gate (23
 
 | Kriteria | Hasil | Bukti |
 |---|---|---|
-| `bash scripts/run_all_gates.sh` | ✅ **OVERALL PASS (25 gates)** | dijalankan 3× berturut (termasuk setelah E2E) |
-| `python3 scripts/mutasi_41_42.py` | ✅ **32/32 pemeriksaan** | 16 mutasi tertangkap + semuanya pulih hijau |
+| `bash scripts/run_all_gates.sh` | ✅ **OVERALL PASS (26 gates)** | dijalankan 4× (termasuk setelah E2E & setelah dua lanjutan) |
+| `python3 scripts/mutasi_41_42.py` | ✅ **42/42 pemeriksaan** | 21 mutasi tertangkap + semuanya pulih hijau |
 | E2E multi-peran (testing agent) | ✅ **0 bug kritis, 0 bug UI** | `test_reports/iteration_63.json`, backend 39/40 |
 | Invarian keuangan & integritas data | ✅ PASS | `verify_business_invariants`, `verify_data_integrity` |
 
-Gate baru terdaftar di `run_all_gates.sh`: **`verify_41.py`** (jam tahap & SLA) dan
-**`verify_partner.py`** (mitra & fee). Uji-mutasinya: **`mutasi_41_42.py`**.
+Gate baru terdaftar di `run_all_gates.sh`: **`verify_41.py`** (jam tahap & SLA),
+**`verify_partner.py`** (mitra & fee), dan **`verify_rbac_ui.py`** (layar tidak menyalin matriks
+RBAC). Uji-mutasinya: **`mutasi_41_42.py`** (21 mutasi / 42 pemeriksaan).
+Catatan waktu: satu gate hanya 1–2 detik, seluruh suite ±5 menit, uji-mutasi ±4 menit.
 
 ---
 
@@ -114,15 +116,11 @@ Semua di bawah adalah cacat asli (bukan penyesuaian gate agar hijau):
 
 ## 4) Utang teknis TERBUKA (jujur — belum dikerjakan, di luar lingkup sesi ini)
 
-1. **Daftar peran hardcode di 25 berkas fase lama** (32 kemunculan `includes(user?.role)`) —
-   sudah dibereskan hanya untuk berkas Fase 41/42. Idealnya semua pindah ke `can()` dan
-   diberi gate global.
+1. ~~**Daftar peran hardcode di 25 berkas fase lama**~~ → **SELESAI** (lihat §7).
 2. **3 peringatan eslint** `react-hooks/exhaustive-deps` (LeadsPage `counts`,
    AgingReportTab `totals`, FeeRulesTab `toggleStatus`) — peringatan lama, bukan error
    kompilasi; kompilasi frontend bersih.
-3. **`/marketing-fee` masih me-render halaman lama** (dengan tab "Pengajuan Fee/Master Agen")
-   alih-alih langsung mendarat di tab **"Tagihan Fee"** hub `/partners`. Alias hidup dan ada
-   peta menu, jadi tidak ada tautan rusak — tapi masih ada dua pintu untuk satu urusan.
+3. ~~**`/marketing-fee` masih me-render halaman lama**~~ → **SELESAI** (lihat §7).
 4. Menu masih "Segera Hadir": Kampanye & Biaya Iklan, Atribusi & CAPI, Analitik & BI.
 5. Integrasi pihak ketiga tetap **mode simulasi**: WhatsApp Cloud API, e-sign, BI/SLIK, e-Faktur.
 
@@ -149,3 +147,75 @@ git — tanpa `JWT_SECRET` di `backend/.env`, setiap login mati 500.
 - **Analitik & BI** (`docs/v2/31_ANALYTICS_BI_SPEC.md`) — sekarang seluruh angka aging/fee sudah
   bisa diagregasi di database, jadi fondasinya sudah siap.
 - **Bersihkan utang RBAC frontend** (butir 4.1) + gate global agar tidak terulang.
+
+
+---
+
+## 7) Lanjutan sesi ini — dua utang teknis DITUTUP
+
+Diminta pemilik: *"Satukan Pintu Fee"* dan *"Bersihkan Utang RBAC"*.
+
+### 7.1 Satu pintu untuk urusan fee (`/marketing-fee` → hub Mitra & Fee)
+
+Sebelumnya ada **DUA pintu untuk satu urusan**: `/marketing-fee` (halaman sendiri, tab
+"Pengajuan Fee" + **"Master Agen"**) dan `/partners` (hub, tab "Tagihan Fee" + **"Master Mitra"**)
+— dua master mitra yang bisa berbeda diam-diam, dan master lama itu tombolnya sama sekali
+tidak dijaga izin.
+
+- `App.js`: rute `/marketing-fee` **tetap terdaftar** (bookmark & notifikasi lama menyimpannya)
+  tetapi kini `<Navigate to="/partners?hub=tagihan" replace />` → pemakai lama langsung
+  mendarat di tab **Tagihan Fee**.
+- Dihapus karena benar-benar kembar: `pages/MarketingFeePage.js`,
+  `components/marketingFee/AgentsPanel.js`, `components/marketingFee/AgentDialog.js`, dan
+  testId mati (`MFEE.page/tabFees/tabAgents/agent*`). Panel fee (`FeesPanel`) TIDAK disalin —
+  memang dipakai ulang sebagai isi tab.
+- `PAGE_META["/marketing-fee"]` dipertahankan (CHECK 3 & 5 `check_nav_map` menuntut setiap
+  rute punya meta, kalau tidak akan dianggap "dead page").
+- Gate diperkuat: `verify_partner.py` kini menuntut alias **MENGALIHKAN** ke tab yang benar,
+  bukan cuma "hidup", dan menuntut halaman + master agen lama benar-benar hilang.
+  Uji-mutasi **M10b**: alias yang mengalih ke `/partners` tanpa tab → gate memerah.
+
+### 7.2 Utang RBAC frontend ditutup + gate global
+
+**24 layar** dipindah dari daftar peran hardcode ke izin **efektif** `can(resource, action)`
+(`GET /auth/me`). Pemetaannya diambil dari `require_permission(...)` yang BENAR-BENAR dipakai
+backend, bukan diterka. Dua cacat nyata ikut terbetulkan:
+
+- **Tombol hilang padahal berhak:** `PeriodClosePanel` menyembunyikan "Buka kembali periode"
+  dari **Manajer Keuangan** padahal ia punya `gl:manage` (mencakup `approve`) — server
+  menjawab 400 (bukan 403) untuk peran itu, jadi tombolnya memang seharusnya ada.
+- **Dua izin digabung jadi satu:** `PermitsPage` memakai satu `canManage` untuk
+  "daftarkan izin" (`permits:create`, hanya Manajer Proyek) DAN "ubah status izin"
+  (`permits:update`, Pelaksana Lapangan juga berhak) → Pelaksana Lapangan tak pernah melihat
+  tombol ubah status. Kini dipisah `canCreate` / `canUpdate`; sudah dibuktikan lewat browser.
+
+**Dua pemakaian nama peran DIPERTAHANKAN** (bukan gerbang izin) dan wajib menjelaskan diri
+sendiri dengan penanda `PENGECUALIAN SAH` di dalam berkasnya:
+- `pages/ConstructionPage.js` — memilih **tab bawaan** sesuai cara kerja peran (semua peran
+  boleh membuka kedua tab). Memakai izin justru SALAH karena akan mengubah tab bawaan
+  Manajer Proyek.
+- `components/subcon/ClaimOpnameSheet.js` — meniru aturan **empat-mata** milik backend yang
+  memang ditulis dengan nama peran ("tidak boleh opname termin yang diajukan sendiri, kecuali
+  owner/super_admin"); tidak ada izin yang bisa menyatakan itu.
+
+**Gate global baru `scripts/verify_rbac_ui.py`** memaksa tiga hal:
+1. tidak ada lagi `[...].includes(user?.role)` di frontend selain 2 pengecualian terdaftar,
+   dan pengecualian wajib berpenjelasan (kalau penjelasannya hilang → gate merah);
+2. setiap pasangan `can("resource","action")` di layar **benar-benar dipaksakan** backend
+   (130 pasangan `require_permission` dibaca dari sumbernya) — salah ketik seperti
+   `can("permit","create")` membuat tombol hilang selamanya tanpa error, dan itu ditangkap;
+3. **bukti API**: peran tanpa izin dijawab **403**, peran yang punya izin **bukan** 403
+   (jadi menyembunyikan tombolnya salah) — 7 probe untuk projects/boq/build/permits/gl.
+
+Uji-mutasi **M17–M20**: layar menyalin lagi daftar peran, izin salah ketik, pengecualian
+kehilangan penjelasan, dan RBAC backend bocor (sales boleh membuat proyek) — semuanya memerah.
+
+### 7.3 Temuan baru yang DILAPORKAN, belum diperbaiki
+
+Gate `verify_rbac_ui` menemukan (dan mencetak sebagai CATATAN, bukan kegagalan):
+**resource `reservations` ada di matriks RBAC tetapi tidak dipaksakan endpoint mana pun.**
+Menahan unit sesungguhnya lewat `POST /deals/reserve` → `deals:create`. Jadi admin bisa
+memberi/mencabut `reservations` di Pusat Konfigurasi dan **tidak ada yang berubah** — rasa
+kendali yang palsu. `SitePlanPage` sudah dibetulkan memakai `deals:create`; membereskan
+resource yatim itu (hapus dari matriks, atau pakai di endpoint reservasi) adalah **keputusan
+pemilik**, bukan pembersihan sepihak — karena mengubah izin endpoint menyentuh gate lain.

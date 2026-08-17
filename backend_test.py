@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-"""Backend API Testing for SIPRO Fase 40 - IA & Design System V2
+"""Backend API Testing for SIPRO - RBAC & Fee Portal Unification
 
-Tests all backend endpoints for Fase 40 including:
-- GET /api/work/home - KPI drill-down data
-- GET /api/work/tasks - new bucket/sla/unassigned params, wide counts
-- GET /api/finance/ar - correct counts keys (unpaid/partial/paid)
-- RBAC for scope=all/division (403 for sales)
-- Complaints API with SLA filter
+Tests for Phase 41/42 continuation:
+- Unified fee portal: /marketing-fee redirects properly
+- RBAC fixes: permissions match backend enforcement
+- Key endpoints for all 13 roles
 """
 import sys
 import requests
-from datetime import datetime
 
 # Use public endpoint from frontend/.env
-BASE_URL = "https://real-estate-stage.preview.emergentagent.com/api"
+BASE_URL = "https://sipro-dev-2.preview.emergentagent.com/api"
 PASSWORD = "Sipro#2026"
 
 class TestRunner:
@@ -44,12 +41,14 @@ class TestRunner:
                             timeout=30)
             if r.status_code == 200:
                 self.tokens[email] = r.json()["access_token"]
+                user_data = r.json().get("data", {})
+                print(f"  ✓ Logged in as {email} (role: {user_data.get('role', 'unknown')})")
                 return True
             else:
-                print(f"  Login failed for {email}: {r.status_code} - {r.text[:100]}")
+                print(f"  ✗ Login failed for {email}: {r.status_code}")
                 return False
         except Exception as e:
-            print(f"  Login error for {email}: {str(e)}")
+            print(f"  ✗ Login error for {email}: {str(e)}")
             return False
     
     def headers(self, email):
@@ -65,6 +64,17 @@ class TestRunner:
                               timeout=30)
         except Exception as e:
             print(f"  GET {path} error: {str(e)}")
+            return None
+    
+    def post(self, path, email, json=None):
+        """POST request"""
+        try:
+            return requests.post(f"{BASE_URL}{path}", 
+                               headers=self.headers(email),
+                               json=json or {},
+                               timeout=30)
+        except Exception as e:
+            print(f"  POST {path} error: {str(e)}")
             return None
     
     def summary(self):
@@ -84,197 +94,252 @@ def main():
     runner = TestRunner()
     
     print("="*60)
-    print("SIPRO FASE 40 - IA & DESIGN SYSTEM V2 - BACKEND TESTS")
+    print("SIPRO - RBAC & FEE PORTAL UNIFICATION - BACKEND TESTS")
     print("="*60)
     
-    # ========== AUTHENTICATION ==========
-    print("\n[1] AUTHENTICATION")
-    runner.test("Login superadmin@sipro.co.id", runner.login("superadmin@sipro.co.id"))
-    runner.test("Login owner@sipro.co.id", runner.login("owner@sipro.co.id"))
-    runner.test("Login manager@sipro.co.id", runner.login("manager@sipro.co.id"))
-    runner.test("Login sales@sipro.co.id", runner.login("sales@sipro.co.id"))
-    runner.test("Login finance@sipro.co.id", runner.login("finance@sipro.co.id"))
-    runner.test("Login pm@sipro.co.id", runner.login("pm@sipro.co.id"))
+    # ========== AUTHENTICATION - ALL 13 ROLES ==========
+    print("\n[1] AUTHENTICATION - ALL 13 ROLES")
+    roles = {
+        "superadmin@sipro.co.id": "super_admin",
+        "owner@sipro.co.id": "owner",
+        "manager@sipro.co.id": "sales_manager",
+        "marketing@sipro.co.id": "marketing_admin",
+        "sales@sipro.co.id": "sales",
+        "sales2@sipro.co.id": "sales",
+        "finance@sipro.co.id": "finance",
+        "finlead@sipro.co.id": "finance_manager",
+        "pm@sipro.co.id": "project_manager",
+        "site@sipro.co.id": "site_engineer",
+        "dmlead@sipro.co.id": "dm_supervisor",
+        "dm@sipro.co.id": "dm_staff",
+    }
+    
+    for email in roles.keys():
+        runner.test(f"Login {email}", runner.login(email))
     
     if not runner.tokens.get("superadmin@sipro.co.id"):
         print("\n✗ Cannot proceed without superadmin login")
         return 1
     
-    # ========== WORK HOME - KPI DRILL-DOWN ==========
-    print("\n[2] GET /api/work/home - KPI DRILL-DOWN DATA")
+    # ========== GET /auth/me - EFFECTIVE PERMISSIONS ==========
+    print("\n[2] GET /auth/me - EFFECTIVE PERMISSIONS")
+    
+    # Test superadmin has wildcard permissions
+    r = runner.get("/auth/me", "superadmin@sipro.co.id")
+    runner.test("GET /auth/me returns 200 for superadmin", r and r.status_code == 200)
+    if r and r.status_code == 200:
+        data = r.json().get("data", {})
+        perms = data.get("permissions", {})
+        runner.test("Superadmin has wildcard permissions {'*': ['*']}", 
+                   perms.get("*") == ["*"],
+                   f"Got: {perms}")
+    
+    # Test finance manager has gl:manage
+    r = runner.get("/auth/me", "finlead@sipro.co.id")
+    if r and r.status_code == 200:
+        data = r.json().get("data", {})
+        perms = data.get("permissions", {})
+        gl_perms = perms.get("gl", [])
+        runner.test("Finance manager has gl:manage permission",
+                   "manage" in gl_perms,
+                   f"GL permissions: {gl_perms}")
+    
+    # Test site engineer has permits:update but not permits:create
+    r = runner.get("/auth/me", "site@sipro.co.id")
+    if r and r.status_code == 200:
+        data = r.json().get("data", {})
+        perms = data.get("permissions", {})
+        permits_perms = perms.get("permits", [])
+        runner.test("Site engineer has permits:update",
+                   "update" in permits_perms,
+                   f"Permits permissions: {permits_perms}")
+        runner.test("Site engineer does NOT have permits:create",
+                   "create" not in permits_perms,
+                   f"Permits permissions: {permits_perms}")
+    
+    # Test sales has view permissions but not create for projects
+    r = runner.get("/auth/me", "sales@sipro.co.id")
+    if r and r.status_code == 200:
+        data = r.json().get("data", {})
+        perms = data.get("permissions", {})
+        projects_perms = perms.get("projects", [])
+        runner.test("Sales has view permission for projects",
+                   any(p in projects_perms for p in ["view", "view_all", "view_own"]),
+                   f"Projects permissions: {projects_perms}")
+        runner.test("Sales does NOT have create permission for projects",
+                   "create" not in projects_perms,
+                   f"Projects permissions: {projects_perms}")
+    
+    # ========== RBAC ENFORCEMENT - B1: BUTTONS THAT WERE MISSING ==========
+    print("\n[3] RBAC B1 - FINANCE MANAGER CAN REOPEN PERIODS")
+    
+    # Finance manager should be able to reopen periods (has gl:manage which includes approve)
+    r = runner.post("/gl/periods/reopen", "finlead@sipro.co.id", {"period": "1900-01"})
+    runner.test("Finance manager CAN reopen period (NOT 403)",
+               r and r.status_code != 403,
+               f"Status: {r.status_code if r else 'N/A'} (400 expected for invalid period, not 403)")
+    
+    # Regular finance should NOT be able to reopen
+    r = runner.post("/gl/periods/reopen", "finance@sipro.co.id", {"period": "1900-01"})
+    runner.test("Regular finance CANNOT reopen period (403)",
+               r and r.status_code == 403,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # ========== RBAC ENFORCEMENT - B2: TWO PERMISSIONS SPLIT ==========
+    print("\n[4] RBAC B2 - SITE ENGINEER: UPDATE BUT NOT CREATE PERMITS")
+    
+    # Site engineer should NOT be able to create permits
+    r = runner.post("/permits", "site@sipro.co.id", {})
+    runner.test("Site engineer CANNOT create permit (403)",
+               r and r.status_code == 403,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # PM should be able to create permits
+    r = runner.post("/permits", "pm@sipro.co.id", {})
+    runner.test("Project manager CAN create permit (NOT 403)",
+               r and r.status_code != 403,
+               f"Status: {r.status_code if r else 'N/A'} (400 expected for empty payload, not 403)")
+    
+    # ========== RBAC ENFORCEMENT - B3: PM BUTTONS STILL PRESENT ==========
+    print("\n[5] RBAC B3 - PROJECT MANAGER HAS EXPECTED PERMISSIONS")
+    
+    # PM should be able to create projects
+    r = runner.post("/projects", "pm@sipro.co.id", {})
+    runner.test("PM CAN create project (NOT 403)",
+               r and r.status_code != 403,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # PM should be able to create BOQ items
+    r = runner.post("/boq/items", "pm@sipro.co.id", {})
+    runner.test("PM CAN create BOQ item (NOT 403)",
+               r and r.status_code != 403,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # ========== RBAC ENFORCEMENT - B4: SALES CANNOT CREATE ==========
+    print("\n[6] RBAC B4 - SALES CANNOT CREATE (VIEW ONLY)")
+    
+    # Sales should NOT be able to create projects
+    r = runner.post("/projects", "sales@sipro.co.id", {})
+    runner.test("Sales CANNOT create project (403)",
+               r and r.status_code == 403,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # Sales should NOT be able to create BOQ items
+    r = runner.post("/boq/items", "sales@sipro.co.id", {})
+    runner.test("Sales CANNOT create BOQ item (403)",
+               r and r.status_code == 403,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # Sales should NOT be able to create partners
+    r = runner.post("/partners", "sales@sipro.co.id", {})
+    runner.test("Sales CANNOT create partner (403)",
+               r and r.status_code == 403,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # But sales CAN view partners
+    r = runner.get("/partners", "sales@sipro.co.id")
+    runner.test("Sales CAN view partners (200)",
+               r and r.status_code == 200,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # Sales CAN reserve units (deals:create)
+    r = runner.post("/deals/reserve", "sales@sipro.co.id", {})
+    runner.test("Sales CAN reserve unit (NOT 403)",
+               r and r.status_code != 403,
+               f"Status: {r.status_code if r else 'N/A'} (400 expected for empty payload, not 403)")
+    
+    # ========== RBAC ENFORCEMENT - B5: ADMIN AREA ==========
+    print("\n[7] RBAC B5 - ADMIN AREA ACCESS CONTROL")
+    
+    # Sales should NOT access admin area
+    r = runner.get("/admin/users", "sales@sipro.co.id")
+    runner.test("Sales CANNOT access /admin/users (403)",
+               r and r.status_code == 403,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # Superadmin CAN access admin area
+    r = runner.get("/admin/users", "superadmin@sipro.co.id")
+    runner.test("Superadmin CAN access /admin/users (200)",
+               r and r.status_code == 200,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    r = runner.get("/admin/permissions", "superadmin@sipro.co.id")
+    runner.test("Superadmin CAN access /admin/permissions (200)",
+               r and r.status_code == 200,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # ========== FEE SEPARATION OF DUTIES - B7 ==========
+    print("\n[8] FEE SEPARATION OF DUTIES - B7")
+    
+    # Finance should NOT be able to issue fee (marketing_fee:create)
+    r = runner.post("/partners/rules/issue", "finance@sipro.co.id", {})
+    runner.test("Finance CANNOT issue fee (403 - separation of duties)",
+               r and r.status_code == 403,
+               f"Status: {r.status_code if r else 'N/A'}")
+    
+    # Sales/Manager CAN issue fee
+    r = runner.post("/partners/rules/issue", "manager@sipro.co.id", {})
+    runner.test("Manager CAN issue fee (NOT 403)",
+               r and r.status_code != 403,
+               f"Status: {r.status_code if r else 'N/A'} (400 expected for empty payload, not 403)")
+    
+    # ========== PARTNERS & FEE ENDPOINTS ==========
+    print("\n[9] PARTNERS & FEE ENDPOINTS")
+    
+    # Get partners list
+    r = runner.get("/partners", "superadmin@sipro.co.id")
+    runner.test("GET /partners returns 200", r and r.status_code == 200)
+    
+    # Get fee rules
+    r = runner.get("/partners/rules", "superadmin@sipro.co.id")
+    runner.test("GET /partners/rules returns 200", r and r.status_code == 200)
+    
+    # Get partner analytics
+    r = runner.get("/partners/analytics", "superadmin@sipro.co.id")
+    runner.test("GET /partners/analytics returns 200", r and r.status_code == 200)
+    
+    # ========== AGING REPORT - REGRESI-3 ==========
+    print("\n[10] AGING REPORT - PHASE 41 NOT BROKEN")
+    
+    # All roles should be able to view aging report
     r = runner.get("/work/home", "superadmin@sipro.co.id")
-    runner.test("GET /api/work/home returns 200", r and r.status_code == 200,
-                f"Status: {r.status_code if r else 'N/A'}")
+    runner.test("GET /work/home returns 200", r and r.status_code == 200)
     
-    if r and r.status_code == 200:
-        response = r.json()
-        data = response.get("data", {})
-        kpis = data.get("kpis", [])
-        runner.test("KPIs list is not empty", len(kpis) > 0,
-                   f"Found {len(kpis)} KPIs")
-        
-        # Check every KPI has drill-down link
-        kpis_with_drill = [k for k in kpis if k.get("drill")]
-        runner.test("Every KPI has non-empty 'drill' field", 
-                   len(kpis_with_drill) == len(kpis),
-                   f"{len(kpis_with_drill)}/{len(kpis)} KPIs have drill")
-        
-        # Check team stats for supervisor/owner roles
-        team = data.get("team", {})
-        if team:
-            drills = team.get("drills", {})
-            runner.test("Team stats have drills for supervisor/owner", 
-                       bool(drills),
-                       f"Drills: {list(drills.keys())[:3]}")
-    
-    # Test for different roles
-    for role_email in ["owner@sipro.co.id", "manager@sipro.co.id", "finance@sipro.co.id", "pm@sipro.co.id"]:
-        if runner.tokens.get(role_email):
-            r = runner.get("/work/home", role_email)
-            runner.test(f"GET /api/work/home for {role_email.split('@')[0]} returns 200",
-                       r and r.status_code == 200)
-    
-    # ========== WORK TASKS - NEW FILTERS ==========
-    print("\n[3] GET /api/work/tasks - NEW BUCKET/SLA/UNASSIGNED FILTERS")
-    
-    # Test bucket filters
-    buckets = ["overdue", "today", "upcoming", "waiting", "review"]
-    for bucket in buckets:
-        r = runner.get("/work/tasks", "superadmin@sipro.co.id", 
-                      {"bucket": bucket, "limit": 10})
-        runner.test(f"GET /api/work/tasks?bucket={bucket} returns 200",
-                   r and r.status_code == 200)
-        
-        if r and r.status_code == 200:
-            data = r.json()
-            # Check counts are "wide" (all buckets present even when filtered)
-            counts = data.get("counts", {})
-            runner.test(f"Counts are 'wide' for bucket={bucket}",
-                       len(counts) >= 5,
-                       f"Counts keys: {list(counts.keys())}")
-    
-    # Test SLA filter
-    r = runner.get("/work/tasks", "superadmin@sipro.co.id", 
-                  {"sla": "breached", "limit": 10})
-    runner.test("GET /api/work/tasks?sla=breached returns 200",
-               r and r.status_code == 200)
-    
-    # Test unassigned filter
-    r = runner.get("/work/tasks", "superadmin@sipro.co.id", 
-                  {"unassigned": "1", "limit": 10})
-    runner.test("GET /api/work/tasks?unassigned=1 returns 200",
-               r and r.status_code == 200)
-    
-    # ========== WORK TASKS - SCOPE RBAC ==========
-    print("\n[4] GET /api/work/tasks - SCOPE RBAC")
-    
-    # Test scope=all for owner (should work)
-    r = runner.get("/work/tasks", "owner@sipro.co.id", 
-                  {"scope": "all", "limit": 10})
-    runner.test("Owner can access scope=all",
-               r and r.status_code == 200,
+    # Only owner/super_admin can reconcile aging
+    r = runner.post("/aging/reconcile", "sales@sipro.co.id", {})
+    runner.test("Sales CANNOT reconcile aging (403)",
+               r and r.status_code == 403,
                f"Status: {r.status_code if r else 'N/A'}")
     
-    # Test scope=all for sales (should be 403)
-    if runner.tokens.get("sales@sipro.co.id"):
-        r = runner.get("/work/tasks", "sales@sipro.co.id", 
-                      {"scope": "all", "limit": 10})
-        runner.test("Sales CANNOT access scope=all (403)",
-                   r and r.status_code == 403,
-                   f"Status: {r.status_code if r else 'N/A'}")
-        
-        # Test scope=division for sales (should be 403)
-        r = runner.get("/work/tasks", "sales@sipro.co.id", 
-                      {"scope": "division", "limit": 10})
-        runner.test("Sales CANNOT access scope=division (403)",
-                   r and r.status_code == 403,
-                   f"Status: {r.status_code if r else 'N/A'}")
-        
-        # Test scope=mine for sales (should work)
-        r = runner.get("/work/tasks", "sales@sipro.co.id", 
-                      {"scope": "mine", "limit": 10})
-        runner.test("Sales CAN access scope=mine",
-                   r and r.status_code == 200,
-                   f"Status: {r.status_code if r else 'N/A'}")
-    
-    # ========== FINANCE AR - CORRECT COUNTS ==========
-    print("\n[5] GET /api/finance/ar - CORRECT COUNTS KEYS")
-    
-    r = runner.get("/finance/ar", "finance@sipro.co.id", {"limit": 10})
-    runner.test("GET /api/finance/ar returns 200",
-               r and r.status_code == 200,
+    r = runner.post("/aging/reconcile", "superadmin@sipro.co.id", {})
+    runner.test("Superadmin CAN reconcile aging (NOT 403)",
+               r and r.status_code != 403,
                f"Status: {r.status_code if r else 'N/A'}")
-    
-    if r and r.status_code == 200:
-        data = r.json()
-        counts = data.get("counts", {})
-        
-        # Check counts keys are exactly unpaid/partial/paid (NOT draft/open/void)
-        expected_keys = {"unpaid", "partial", "paid"}
-        actual_keys = set(counts.keys())
-        runner.test("Counts keys are unpaid/partial/paid (NOT draft/open/void)",
-                   expected_keys.issubset(actual_keys),
-                   f"Keys: {list(counts.keys())}")
-        
-        # Check no wrong keys
-        wrong_keys = {"draft", "open", "void"} & actual_keys
-        runner.test("No wrong keys (draft/open/void) in counts",
-                   len(wrong_keys) == 0,
-                   f"Wrong keys found: {wrong_keys}" if wrong_keys else "Clean")
-    
-    # Test status filter
-    r = runner.get("/finance/ar", "finance@sipro.co.id", 
-                  {"status": "unpaid,partial", "limit": 10})
-    runner.test("GET /api/finance/ar?status=unpaid,partial returns 200",
-               r and r.status_code == 200)
-    
-    # Test sort
-    r = runner.get("/finance/ar", "finance@sipro.co.id", 
-                  {"sort": "outstanding", "direction": "desc", "limit": 10})
-    runner.test("GET /api/finance/ar?sort=outstanding&direction=desc returns 200",
-               r and r.status_code == 200)
-    
-    # ========== COMPLAINTS - SLA FILTER ==========
-    print("\n[6] GET /api/complaints - SLA FILTER")
-    
-    r = runner.get("/complaints", "superadmin@sipro.co.id", {"limit": 10})
-    runner.test("GET /api/complaints returns 200",
-               r and r.status_code == 200)
-    
-    # Test SLA filter
-    r = runner.get("/complaints", "superadmin@sipro.co.id", 
-                  {"sla": "breached", "limit": 10})
-    runner.test("GET /api/complaints?sla=breached returns 200",
-               r and r.status_code == 200)
-    
-    if r and r.status_code == 200:
-        data = r.json()
-        items = data.get("data", [])
-        # All items should have SLA breached
-        if items:
-            breached_items = [i for i in items if i.get("sla_breached")]
-            runner.test("All items in sla=breached have sla_breached=true",
-                       len(breached_items) == len(items),
-                       f"{len(breached_items)}/{len(items)} items breached")
     
     # ========== REGRESSION TESTS ==========
-    print("\n[7] REGRESSION - EXISTING ENDPOINTS")
+    print("\n[11] REGRESSION - EXISTING ENDPOINTS")
     
-    # Projects
-    r = runner.get("/projects", "pm@sipro.co.id")
-    runner.test("GET /api/projects returns 200", r and r.status_code == 200)
+    # Test key endpoints still work
+    endpoints = [
+        ("/projects", "pm@sipro.co.id"),
+        ("/leads", "manager@sipro.co.id"),
+        ("/customers", "manager@sipro.co.id"),
+        ("/deals", "sales@sipro.co.id"),
+        ("/build/summary", "pm@sipro.co.id"),
+        ("/materials", "pm@sipro.co.id"),
+        ("/permits", "pm@sipro.co.id"),
+        ("/boq/items", "pm@sipro.co.id"),
+        ("/subcon/contractors", "pm@sipro.co.id"),
+        ("/procurement/orders", "pm@sipro.co.id"),
+        ("/accounting/coa", "finance@sipro.co.id"),
+        ("/gl/journals", "finance@sipro.co.id"),
+    ]
     
-    # Leads
-    r = runner.get("/leads", "manager@sipro.co.id", {"limit": 10})
-    runner.test("GET /api/leads returns 200", r and r.status_code == 200)
-    
-    # Customers
-    r = runner.get("/customers", "manager@sipro.co.id", {"limit": 10})
-    runner.test("GET /api/customers returns 200", r and r.status_code == 200)
-    
-    # Build summary
-    r = runner.get("/build/summary", "pm@sipro.co.id")
-    runner.test("GET /api/build/summary returns 200", r and r.status_code == 200)
+    for path, email in endpoints:
+        r = runner.get(path, email, {"limit": 10})
+        runner.test(f"GET {path} returns 200 for {email.split('@')[0]}", 
+                   r and r.status_code == 200,
+                   f"Status: {r.status_code if r else 'N/A'}")
     
     # ========== FINAL SUMMARY ==========
     return runner.summary()

@@ -11,11 +11,14 @@ import { toPhotoList } from "@/utils/photoSrc";
 import api from "@/services/apiClient";
 import { FIELD } from "@/constants/testIds";
 
-const MANAGE = ["owner", "super_admin", "project_manager", "site_engineer"];
 
 export default function SiteDiaryPanel({ projectId }) {
-  const { user } = useAuth();
-  const canManage = MANAGE.includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canManage = can("construction", "create");
   const [rows, setRows] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

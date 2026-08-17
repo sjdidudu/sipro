@@ -28,9 +28,14 @@ import api from "@/services/apiClient";
 import { MATERIALS } from "@/constants/testIds";
 
 export default function MaterialsPage() {
-  const { user } = useAuth();
-  const canUpdate = ["owner", "super_admin", "project_manager", "site_engineer"].includes(user?.role);
-  const canApprove = ["owner", "super_admin", "project_manager"].includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  // Pemisahan tugas Fase 18: site MENGAJUKAN & mengeluarkan, PM MENYETUJUI.
+  const canUpdate = can("materials", "update");
+  const canApprove = can("materials", "approve");
   const [projectId, setProjectId] = useState(null);
   const [mats, setMats] = useState([]);
   const [txns, setTxns] = useState([]);

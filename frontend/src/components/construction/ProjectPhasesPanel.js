@@ -25,8 +25,12 @@ const PHASE_TONE = { not_started: "draft", done: "completed", qc_hold: "lost", i
  * "Monitoring Unit".
  */
 export default function ProjectPhasesPanel({ projectId, onChanged }) {
-  const { user } = useAuth();
-  const canUpdate = ["owner", "super_admin", "project_manager", "site_engineer"].includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canUpdate = can("construction", "update");
   const [phases, setPhases] = useState([]);
   const [overall, setOverall] = useState(0);
   const [curve, setCurve] = useState(null);

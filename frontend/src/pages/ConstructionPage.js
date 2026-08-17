@@ -37,6 +37,11 @@ import { BUILD, CONSTRUCTION } from "@/constants/testIds";
  *   6. Laporan & Analitik   — laporan mingguan direksi + analitik keterlambatan (Fase 32)
  *   7. Template Jadwal      — tahapan per tipe unit yang bisa dikonfigurasi
  */
+// PENGECUALIAN SAH dari aturan "jangan salin matriks RBAC": ini BUKAN gerbang izin —
+// semua peran di bawah boleh membuka kedua tab. Yang dipilih di sini hanya TAB BAWAAN
+// sesuai cara kerja peran: pelaksana lapangan memulai dari Papan Mandor, yang lain dari
+// Monitoring. Memakai izin (`construction:update`) justru SALAH karena akan ikut
+// mengubah tab bawaan Manajer Proyek. Dijaga daftar izin di `verify_rbac_ui.py`.
 const FIELD_ROLES = ["site_engineer"];
 
 export default function ConstructionPage() {

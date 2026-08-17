@@ -1927,3 +1927,144 @@ agent_communication:
       fase lama (32 kemunculan); 3 peringatan eslint react-hooks/exhaustive-deps
       (LeadsPage, AgingReportTab, FeeRulesTab); `/marketing-fee` masih me-render halaman lama
       (alias hidup & ada peta menu) alih-alih langsung mendarat di tab "Tagihan Fee" hub.
+
+#====================================================================================================
+# LANJUTAN — SATU PINTU FEE + UTANG RBAC FRONTEND DITUTUP (gate global ke-26)
+#====================================================================================================
+
+frontend:
+  - task: "Satu pintu urusan fee: /marketing-fee mengalihkan ke tab Tagihan Fee hub Mitra & Fee"
+    implemented: true
+    working: true
+    file: "frontend/src/App.js, config/navigationConfig.js, constants/testIds/marketingFee.js, scripts/verify_partner.py, scripts/mutasi_41_42.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          Sebelumnya ada DUA pintu untuk satu urusan: `/marketing-fee` (halaman sendiri dengan
+          tab "Pengajuan Fee" + "Master Agen") dan `/partners` (hub dengan tab "Tagihan Fee" +
+          "Master Mitra") — DUA master mitra yang bisa berbeda diam-diam, dan master lama itu
+          tombolnya sama sekali tidak dijaga izin. Sekarang rute `/marketing-fee` TETAP
+          terdaftar (bookmark/notifikasi lama menyimpannya) tetapi mengalihkan ke
+          `/partners?hub=tagihan`. Dihapus karena benar-benar kembar: pages/MarketingFeePage.js,
+          components/marketingFee/AgentsPanel.js, AgentDialog.js, dan testId mati
+          (MFEE.page/tabFees/tabAgents/agent*). FeesPanel TIDAK disalin (memang dipakai ulang
+          sebagai isi tab). PAGE_META["/marketing-fee"] DIPERTAHANKAN karena check_nav_map
+          CHECK 3 & 5 menuntut setiap rute punya meta (kalau tidak dianggap "dead page").
+          Diverifikasi lewat browser sebagai finance: bookmark lama mendarat di tab Tagihan Fee,
+          data fee sama (MF/2026/0003), tab "Master Agen" hilang, "Master Mitra" ada.
+          Gate diperkuat: verify_partner.py menuntut alias MENGALIHKAN (bukan cuma hidup) +
+          halaman/master lama benar-benar hilang. Uji-mutasi M10b: alias mengalih ke /partners
+          tanpa tab -> gate memerah.
+
+  - task: "Utang RBAC frontend ditutup: 24 layar pindah ke izin efektif can()"
+    implemented: true
+    working: true
+    file: "frontend/src/App.js + 23 berkas (construction/field/procurement/gl/subcon panels, pages Projects/ProjectDetail/UnitDetail/Materials/Permits/BoQ/SitePlan/Leads/Home)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          32 kemunculan `[...].includes(user?.role)` di 25 berkas (warisan fase lama) dipindah
+          ke izin EFEKTIF `can(resource, action)` dari GET /auth/me. Pemetaan diambil dari
+          `require_permission(...)` yang BENAR-BENAR dipakai backend, bukan diterka. DUA cacat
+          nyata ikut terbetulkan: (1) PeriodClosePanel menyembunyikan "Buka kembali periode"
+          dari Manajer Keuangan padahal ia punya gl:manage (mencakup approve) — dibuktikan
+          server menjawab 400 bukan 403 untuk peran itu; (2) PermitsPage memakai SATU canManage
+          untuk dua izin berbeda (permits:create hanya PM, permits:update Pelaksana Lapangan
+          juga berhak) sehingga tombol ubah status tak pernah muncul untuk Pelaksana Lapangan —
+          kini dipisah canCreate/canUpdate dan sudah dibuktikan lewat browser (site engineer
+          melihat panel "Perbarui Status", tanpa tombol "Tambah Izin").
+          DUA pemakaian nama peran SENGAJA DIPERTAHANKAN karena bukan gerbang izin, dan wajib
+          menjelaskan diri sendiri dengan penanda "PENGECUALIAN SAH": ConstructionPage (memilih
+          TAB BAWAAN per peran — memakai izin justru salah karena akan mengubah tab bawaan
+          Manajer Proyek) dan ClaimOpnameSheet (meniru aturan empat-mata backend yang memang
+          ditulis dengan nama peran). Diverifikasi tidak ada perubahan perilaku yang tidak
+          diinginkan: tab bawaan PM tetap Monitoring, sales tetap bisa menahan unit di Site Plan.
+
+  - task: "Gate global baru scripts/verify_rbac_ui.py (gate ke-26) + mutasi M17-M20"
+    implemented: true
+    working: true
+    file: "scripts/verify_rbac_ui.py, scripts/run_all_gates.sh, scripts/mutasi_41_42.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          Gate memaksa TIGA hal: (a) tidak ada lagi daftar peran RBAC disalin ke layar, kecuali
+          2 pengecualian terdaftar YANG WAJIB berpenjelasan di berkasnya; (b) setiap pasangan
+          can("resource","action") di layar benar-benar DIPAKSAKAN backend — 130 pasangan
+          require_permission dibaca langsung dari sumber, sehingga salah ketik seperti
+          can("permit","create") (yang membuat tombol hilang selamanya TANPA error) tertangkap;
+          (c) BUKTI API: peran tanpa izin dijawab 403 dan peran yang punya izin BUKAN 403 —
+          7 probe (projects, boq, build/templates/clone, permits x2, gl/periods/reopen x2)
+          dengan payload sengaja tidak sah supaya tidak ada data tertulis.
+          GATE INI LANGSUNG MENANGKAP DUA KESALAHAN SAYA SENDIRI saat konversi: (1) saya memakai
+          can("reservations","create") untuk tombol tahan unit padahal TIDAK ADA endpoint yang
+          memaksakan `reservations` — yang benar `deals:create` (POST /deals/reserve);
+          (2) probe build/templates/clone awalnya memakai body kosong sehingga dijawab 400 oleh
+          validasi body sebelum sampai ke pemeriksaan SUPERVISOR_ROLES (site engineer PUNYA
+          construction:create, jadi dependency izin lolos) — body dibuat sah dengan clone_from
+          yang tidak ada supaya mencapai pemeriksaan peran tanpa menulis data.
+          Uji-mutasi M17-M20 semuanya memerah lalu pulih.
+
+  - task: "TEMUAN BARU dilaporkan (belum diperbaiki): resource RBAC `reservations` yatim"
+    implemented: false
+    working: "NA"
+    file: "backend/rbac.py, backend/routers/deals_router.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: >
+          `reservations` ADA di DEFAULT_PERMISSIONS tetapi TIDAK dipaksakan endpoint mana pun
+          (menahan unit sesungguhnya lewat POST /deals/reserve -> deals:create). Akibatnya
+          admin bisa memberi/mencabut izin `reservations` di Pusat Konfigurasi dan TIDAK ADA
+          yang berubah — rasa kendali yang palsu. verify_rbac_ui mencetaknya sebagai CATATAN
+          (bukan kegagalan) supaya terlihat. SitePlanPage sudah dibetulkan memakai deals:create.
+          Membereskan resource yatim itu (hapus dari matriks ATAU pakai di endpoint reservasi)
+          adalah keputusan pemilik, bukan pembersihan sepihak, karena mengubah izin endpoint
+          menyentuh gate lain yang sudah lulus.
+
+metadata:
+  created_by: "main_agent"
+  version: "42.1"
+  test_sequence: 64
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "SELESAI: run_all_gates.sh = OVERALL PASS (26 gates, + verify_rbac_ui.py)"
+    - "SELESAI: mutasi_41_42.py = 42/42 (21 mutasi tertangkap + semuanya pulih hijau)"
+    - "SELESAI: bukti browser per peran — finance (Ajukan Fee nonaktif), sales (mitra read-only), site engineer (ubah status izin muncul), PM (tab bawaan tidak berubah)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Dua permintaan lanjutan SELESAI dan terverifikasi:
+      - `bash scripts/run_all_gates.sh` -> OVERALL PASS (26 gates)
+      - `python3 scripts/mutasi_41_42.py` -> 42/42 pemeriksaan (21 mutasi)
+      - Bukti browser per peran untuk setiap perubahan perilaku.
+      Yang berubah untuk pemakai: bookmark `/marketing-fee` sekarang mendarat di tab
+      "Tagihan Fee"; Manajer Keuangan AKHIRNYA melihat "Buka kembali periode"; Pelaksana
+      Lapangan AKHIRNYA melihat "Perbarui Status" izin. Tidak ada tombol yang hilang untuk
+      peran yang berhak, dan tidak ada tombol baru untuk peran yang tidak berhak.
+      Catatan waktu (koreksi perkiraan saya sebelumnya): satu gate hanya 1-2 detik,
+      suite penuh ±5 menit, uji-mutasi ±4 menit.
+      TEMUAN TERBUKA yang saya laporkan, TIDAK saya perbaiki sendiri: resource RBAC
+      `reservations` yatim (lihat entri di atas) — butuh keputusan pemilik.
+      Sisa utang teknis lama: 3 peringatan eslint react-hooks/exhaustive-deps
+      (LeadsPage, AgingReportTab, FeeRulesTab). Integrasi pihak ketiga tetap MODE SIMULASI.

@@ -25,8 +25,14 @@ import api from "@/services/apiClient";
  * supaya tidak ada pekerjaan yang menganggur menunggu seseorang membuka jadwal unit.
  */
 export default function BuildQueuePanel({ projectId }) {
-  const { user } = useAuth();
-  const supervisor = ["owner", "super_admin", "project_manager"].includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  // "Supervisor" di sini = yang boleh MEMVERIFIKASI hasil kerja (`construction:approve`),
+  // karena itulah antrean bawaannya "verify" dan bukan "todo".
+  const supervisor = can("construction", "approve");
   const [scope, setScope] = useState(supervisor ? "verify" : "todo");
   const [status, setStatus] = useState("");
   const [rows, setRows] = useState([]);

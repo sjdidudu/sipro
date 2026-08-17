@@ -24,9 +24,6 @@ import { formatIDR } from "@/utils/formatters";
 import api from "@/services/apiClient";
 import { SITE_PLAN } from "@/constants/testIds";
 
-const SELL_ROLES = ["owner", "super_admin", "sales_manager", "marketing_admin", "sales"];
-const SETUP_ROLES = ["owner", "super_admin", "project_manager"];
-const SHARE_ROLES = ["owner", "super_admin", "sales_manager", "marketing_admin", "project_manager"];
 
 /**
  * Site Plan & Showroom Digital.
@@ -38,10 +35,18 @@ const SHARE_ROLES = ["owner", "super_admin", "sales_manager", "marketing_admin",
  * Bila proyek belum punya peta SVG, tata letak blok otomatis dipakai sebagai fallback.
  */
 export default function SitePlanPage() {
-  const { user } = useAuth();
-  const canReserve = SELL_ROLES.includes(user?.role);
-  const canSetup = SETUP_ROLES.includes(user?.role);
-  const canShare = SHARE_ROLES.includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  // Menahan unit di Site Plan berjalan lewat `POST /deals/reserve`, yang dipaksakan dengan
+  // `deals:create` — BUKAN `reservations:create`. Resource `reservations` ada di matriks RBAC
+  // tetapi tidak dipaksakan endpoint mana pun, jadi memakainya di sini akan membuat tombol
+  // bergantung pada izin yang tidak pernah dibaca server (gate `verify_rbac_ui` menangkapnya).
+  const canReserve = can("deals", "create");
+  const canSetup = can("projects", "update");
+  const canShare = can("showroom", "update");
 
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState("");

@@ -20,11 +20,14 @@ import api from "@/services/apiClient";
 import { PROCUREMENT } from "@/constants/testIds";
 import RefLabel from "@/components/patterns/RefLabel";
 
-const CREATE = ["owner", "super_admin", "project_manager", "site_engineer", "finance"];
 
 export default function POPanel() {
-  const { user } = useAuth();
-  const canCreate = CREATE.includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canCreate = can("procurement", "create");
   const [projectId, setProjectId] = useState(null);
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("all");

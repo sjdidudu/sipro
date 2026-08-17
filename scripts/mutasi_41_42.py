@@ -21,12 +21,20 @@ mewakili satu janji yang gate klaim dijaganya:
   Fase 42 (verify_partner.py)
     M9  menu "Mitra & Fee" ditutup lagi jadi "Segera Hadir"
     M10 rute alias lama `/marketing-fee` dihapus (bookmark & tautan lama mati)
+    M10b alias hidup tapi tidak mendarat di tab Tagihan Fee (dua pintu untuk satu urusan)
     M11 grup SSOT `partner_tax_type` dicabut (aturan fee ber-pajak mati 500, bukan 400)
     M12 penjaga idempoten dicabut: satu pemicu bisa menerbitkan tagihan fee DUA KALI
     M13 RBAC bocor: sales boleh mendaftarkan mitra (atribusi & uang tak terkendali)
     M14 INV-09 tanpa penjelasan: fee ditolak tanpa menyebut aturan (tak bisa ditindak)
     M15 layar menyalin lagi matriks RBAC (tombol beda pendapat dengan server)
     M16 tombol "Ajukan Fee" lepas dari izin (CTA mati untuk finance)
+
+  Gate global RBAC UI (verify_rbac_ui.py)
+    M17 satu layar kembali menyalin daftar peran RBAC
+    M18 layar memakai izin yang SALAH KETIK (tombol hilang selamanya tanpa error)
+    M19 pengecualian nama peran kehilangan penjelasannya (pengecualian diam-diam)
+    M20 RBAC backend bocor: sales boleh membuat proyek (bukti API memerah)
+    M21 tab "Tagihan Fee" tampil untuk peran tanpa izin fee (tab mati, isinya 403)
 
 Pakai: `python3 scripts/mutasi_41_42.py`. Exit !=0 bila ada mutasi yang TIDAK tertangkap.
 """
@@ -57,6 +65,17 @@ LEADS = "frontend/src/pages/LeadsPage.js"
 CELL = "frontend/src/components/patterns/AgingCell.js"
 PREVIEW = "frontend/src/components/partners/FeePreviewDialog.js"
 FEESPANEL = "frontend/src/components/marketingFee/FeesPanel.js"
+JOURNAL = "frontend/src/components/gl/JournalPanel.js"
+PERMITS = "frontend/src/pages/PermitsPage.js"
+CONSTRUCTION = "frontend/src/pages/ConstructionPage.js"
+PARTNERSPAGE = "frontend/src/pages/PartnersPage.js"
+
+PERM_NOTE = (
+    "  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di\n"
+    "  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode\n"
+    "  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang\n"
+    "  // padahal peran itu berhak).\n"
+)
 
 
 def wait_backend():
@@ -209,9 +228,16 @@ def main():
            "verify_partner.py", "FAIL  menu mitra TIDAK lagi 'Segera Hadir'")
 
     mutate("M10 rute alias lama /marketing-fee dihapus",
-           [(APP, '            <Route path="/marketing-fee" element={<MarketingFeePage />} />\n',
+           [(APP, '            <Route path="/marketing-fee"\n'
+                  '              element={<Navigate to="/partners?hub=tagihan" replace />} />\n',
              "")],
            "verify_partner.py", "FAIL  rute alias /marketing-fee TETAP hidup")
+
+    mutate("M10b alias hidup tapi tidak mendarat di tab Tagihan Fee (dua pintu lagi)",
+           [(APP, 'element={<Navigate to="/partners?hub=tagihan" replace />} />',
+             'element={<Navigate to="/partners" replace />} />')],
+           "verify_partner.py",
+           "FAIL  alias /marketing-fee MENGALIHKAN ke tab Tagihan Fee (satu pintu)")
 
     mutate("M11 grup SSOT partner_tax_type dicabut (aturan fee ber-pajak mati 500)",
            [(REF41, '    "partner_tax_type": {', '    "partner_tax_type_DICABUT": {')],
@@ -256,6 +282,41 @@ def main():
              "  const canSubmit = true;")],
            "verify_partner.py",
            'FAIL  FeesPanel.js memakai izin efektif can("marketing_fee", "create")')
+
+    # ------------------------------------------- gate global RBAC UI (verify_rbac_ui.py)
+    mutate("M17 satu layar kembali menyalin daftar peran RBAC",
+           [(JOURNAL,
+             "  const { can } = useAuth();\n" + PERM_NOTE
+             + '  const canManage = can("gl", "create");',
+             "  const { user } = useAuth();\n"
+             '  const canManage = ["owner", "super_admin", "finance"].includes(user?.role);')],
+           "verify_rbac_ui.py", "FAIL  tidak ada layar yang menyalin daftar peran RBAC")
+
+    mutate("M18 layar memakai izin yang SALAH KETIK (tombol hilang tanpa error)",
+           [(PERMITS, '  const canCreate = can("permits", "create");',
+             '  const canCreate = can("permit", "create");')],
+           "verify_rbac_ui.py", 'FAIL  izin can("permit", "create") dipaksakan backend')
+
+    mutate("M19 pengecualian nama peran kehilangan penjelasannya",
+           [(CONSTRUCTION, '// PENGECUALIAN SAH dari aturan "jangan salin matriks RBAC": ini BUKAN',
+             "// catatan: ini BUKAN")],
+           "verify_rbac_ui.py",
+           "FAIL  pengecualian 'pages/ConstructionPage.js' menjelaskan alasannya di berkasnya")
+
+    mutate("M20 RBAC backend bocor: sales boleh membuat proyek",
+           [(RBAC, '    "sales_manager": {"documents": ["verify"]},',
+             '    "sales_manager": {"documents": ["verify"]},\n'
+             '    "sales": {"projects": ["create"]},')],
+           "verify_rbac_ui.py", "FAIL  sales -> POST /projects = 403")
+
+    mutate("M21 tab Tagihan Fee tampil untuk peran tanpa izin fee (tab mati)",
+           [(PARTNERSPAGE,
+             '    seeFees && { key: "tagihan", label: "Tagihan Fee", icon: Banknote,'
+             " content: <FeesPanel /> },",
+             '    { key: "tagihan", label: "Tagihan Fee", icon: Banknote,'
+             " content: <FeesPanel /> },")],
+           "verify_partner.py",
+           "FAIL  tab Tagihan Fee hanya tampil bila peran boleh membaca tagihan fee")
 
     print("\n" + "=" * 78)
     print("UJI-MUTASI GATE FASE 41 (jam tahap & SLA) + FASE 42 (mitra & fee)")

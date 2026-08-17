@@ -20,8 +20,17 @@ import { PERMITS } from "@/constants/testIds";
 
 
 export default function PermitsPage() {
-  const { user } = useAuth();
-  const canManage = ["owner", "super_admin", "project_manager"].includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  // Dua izin BERBEDA yang dulu digabung jadi satu `canManage`: MENDAFTARKAN izin baru
+  // (`permits:create`, hanya Manajer Proyek) dan MENGUBAH STATUS izin
+  // (`permits:update`, Pelaksana Lapangan juga berhak). Karena disatukan, tombol ubah
+  // status tidak pernah muncul untuk Pelaksana Lapangan padahal server mengizinkannya.
+  const canCreate = can("permits", "create");
+  const canUpdate = can("permits", "update");
   const [data, setData] = useState(null);
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState("all");
@@ -54,7 +63,7 @@ export default function PermitsPage() {
           <Stamp className="h-5 w-5 text-primary" />
           <h1 className="font-heading text-xl font-semibold">Perizinan & Dokumen</h1>
         </div>
-        {canManage ? (
+        {canCreate ? (
           <Button data-testid={PERMITS.addBtn} size="sm" onClick={() => setAddOpen(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> Tambah Izin
           </Button>
@@ -84,7 +93,7 @@ export default function PermitsPage() {
         !data?.data?.length ? (
           <EmptyState icon={Stamp} title="Belum ada perizinan"
             description="Catat izin proyek (KRK/IMB/PBG/SLF) dengan tenggat agar tidak terlewat."
-            actionLabel={canManage ? "Tambah Izin" : undefined} onAction={() => setAddOpen(true)} />
+            actionLabel={canCreate ? "Tambah Izin" : undefined} onAction={() => setAddOpen(true)} />
         ) : (
           <div className="overflow-x-auto rounded-xl border bg-card">
             <Table>
@@ -117,7 +126,7 @@ export default function PermitsPage() {
         )}
 
       <AddPermitDialog open={addOpen} onOpenChange={setAddOpen} projects={projects} onDone={load} />
-      <PermitDetailSheet permit={selected} open={!!selected} canManage={canManage}
+      <PermitDetailSheet permit={selected} open={!!selected} canManage={canUpdate}
         onOpenChange={(v) => !v && setSelected(null)} onChanged={load} />
     </div>
   );

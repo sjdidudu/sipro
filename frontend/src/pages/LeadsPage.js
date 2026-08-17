@@ -36,9 +36,13 @@ import { LEADS, DT } from "@/constants/testIds";
 export default function LeadsPage() {
   const navigate = useNavigate();
   const { options, labelOf } = useReference();
-  const { user } = useAuth();
-  const isManager = ["owner", "super_admin", "sales_manager", "marketing_admin"]
-    .includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  // Kolom & aksi PIC (menugaskan lead ke orang lain) = izin `leads:assign`.
+  const isManager = can("leads", "assign");
 
   const { query, setQuery, reset, apiParams, activeCount } = useListQuery({
     filters: {

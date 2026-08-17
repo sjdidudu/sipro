@@ -19,12 +19,15 @@ import api from "@/services/apiClient";
 import { PROCUREMENT, COST } from "@/constants/testIds";
 import { useReference } from "@/context/ReferenceContext";
 
-const MANAGE = ["owner", "super_admin", "project_manager"];
 
 export default function BoQPage() {
   const { labelOf } = useReference();
-  const { user } = useAuth();
-  const canManage = MANAGE.includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canManage = can("boq", "create");
   const [projectId, setProjectId] = useState(null);
   const [items, setItems] = useState(null);
   const [summary, setSummary] = useState(null);

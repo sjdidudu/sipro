@@ -26,8 +26,14 @@ import { BUILD } from "@/constants/testIds";
  * diverifikasi tidak ikut bergeser.
  */
 export default function BuildTemplatePanel({ projectId }) {
-  const { user } = useAuth();
-  const canConfigure = ["owner", "super_admin", "project_manager"].includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  // Backend `build_router` menolak siapa pun di luar SUPERVISOR_ROLES; himpunan peran yang
+  // sama persis = pemegang `construction:approve` (site engineer sengaja tak punya approve).
+  const canConfigure = can("construction", "approve");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

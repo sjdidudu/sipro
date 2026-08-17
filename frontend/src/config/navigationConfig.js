@@ -46,7 +46,7 @@ export const PAGE_META = {
   "/procurement": { kicker: "Pengadaan", title: "Pengadaan & 3-Way Match" },
   "/finance": { kicker: "Keuangan", title: "AR / AP / Komisi" },
   "/petty-cash": { kicker: "Keuangan", title: "Kas Bon (Uang Muka Karyawan)" },
-  "/marketing-fee": { kicker: "Keuangan", title: "Marketing Fee Agen & Mitra" },
+  "/marketing-fee": { kicker: "CRM", title: "Mitra & Fee" },
   "/partners": { kicker: "CRM", title: "Mitra & Fee" },
   "/partners/:id": { kicker: "CRM", title: "Profil Mitra" },
   "/fixed-assets": { kicker: "Akuntansi", title: "Aset Tetap & Penyusutan" },

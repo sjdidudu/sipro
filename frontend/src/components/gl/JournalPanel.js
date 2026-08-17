@@ -14,11 +14,14 @@ import { formatIDR, formatDateWIB } from "@/utils/formatters";
 import api from "@/services/apiClient";
 import { GL } from "@/constants/testIds";
 
-const MANAGE = ["owner", "super_admin", "finance"];
 
 export default function JournalPanel() {
-  const { user } = useAuth();
-  const canManage = MANAGE.includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canManage = can("gl", "create");
   const [data, setData] = useState(null);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);

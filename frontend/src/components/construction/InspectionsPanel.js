@@ -20,8 +20,12 @@ import { useReference } from "@/context/ReferenceContext";
 
 
 export default function InspectionsPanel({ projectId, phases = [] }) {
-  const { user } = useAuth();
-  const canUpdate = ["owner", "super_admin", "project_manager", "site_engineer"].includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canUpdate = can("construction", "update");
 
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);

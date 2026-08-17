@@ -18,11 +18,14 @@ import { formatIDR } from "@/utils/formatters";
 import api from "@/services/apiClient";
 import { PROCUREMENT } from "@/constants/testIds";
 
-const MANAGE = ["owner", "super_admin", "project_manager"];
 
 export default function SPKPanel() {
-  const { user } = useAuth();
-  const canManage = MANAGE.includes(user?.role);
+  const { can } = useAuth();
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canManage = can("subcon", "create");
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("all");
   const [loading, setLoading] = useState(true);

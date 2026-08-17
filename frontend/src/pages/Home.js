@@ -32,7 +32,7 @@ function TeamStat({ icon: Icon, label, value, tone, to }) {
 }
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -71,10 +71,12 @@ export default function Home() {
     navigate("/tasks");
   };
 
-  const canSeeCommission = ["sales", "sales_manager", "marketing_admin", "owner", "super_admin", "finance"]
-    .includes(user?.role);
-  const canSeeBuild = ["owner", "super_admin", "project_manager", "site_engineer"]
-    .includes(user?.role);
+  // Izin dari izin EFEKTIF (`GET /auth/me`), bukan daftar peran yang ditulis ulang di
+  // layar: matriks RBAC bisa diubah admin lewat Pusat Konfigurasi, jadi daftar hardcode
+  // membuat tombol berbeda dengan jawaban server (tombol mati 403, atau tombol hilang
+  // padahal peran itu berhak).
+  const canSeeCommission = can("commissions", "view");
+  const canSeeBuild = can("construction", "view");
 
   const greeting = () => {
     const h = new Date().getHours();

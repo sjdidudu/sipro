@@ -42,7 +42,6 @@ import TaxPage from "@/pages/TaxPage";
 import PettyCashPage from "@/pages/PettyCashPage";
 import FixedAssetsPage from "@/pages/FixedAssetsPage";
 import CorporateFinancingPage from "@/pages/CorporateFinancingPage";
-import MarketingFeePage from "@/pages/MarketingFeePage";
 import PartnersPage from "@/pages/PartnersPage";
 import PartnerProfilePage from "@/pages/PartnerProfilePage";
 import AdminUsers from "@/pages/AdminUsers";
@@ -69,8 +68,11 @@ function RequireAuth({ children }) {
 }
 
 function RequireAdmin({ children }) {
-  const { user } = useAuth();
-  if (!["super_admin", "owner"].includes(user?.role)) return <Navigate to="/" replace />;
+  const { can } = useAuth();
+  // Resource `permissions` sengaja KOSONG di matriks RBAC = hanya peran FULL_ACCESS
+  // (owner/super_admin) yang lolos. Memakai izin efektif berarti area Admin ikut aturan
+  // yang sama dengan backend `admin_router`, tanpa menyalin nama peran ke frontend.
+  if (!can("permissions", "manage")) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -131,7 +133,14 @@ export default function App() {
             <Route path="/petty-cash" element={<PettyCashPage />} />
             <Route path="/fixed-assets" element={<FixedAssetsPage />} />
             <Route path="/corporate-financing" element={<CorporateFinancingPage />} />
-            <Route path="/marketing-fee" element={<MarketingFeePage />} />
+            {/* Fase 42 — SATU PINTU untuk urusan fee mitra. Rute lama ini SENGAJA tetap
+                terdaftar (bookmark, notifikasi, dan tautan yang sudah terbit menyimpannya)
+                tetapi tidak lagi punya halaman sendiri: dulu ada DUA pintu untuk satu
+                urusan — `/marketing-fee` (Pengajuan Fee + Master Agen) dan `/partners`
+                (Tagihan Fee + Master Mitra) — dengan master mitra kembar. Sekarang
+                pemakai lama langsung mendarat di tab "Tagihan Fee" hub Mitra & Fee. */}
+            <Route path="/marketing-fee"
+              element={<Navigate to="/partners?hub=tagihan" replace />} />
             <Route path="/partners" element={<PartnersPage />} />
             <Route path="/partners/:id" element={<PartnerProfilePage />} />
             <Route path="/complaints" element={<ComplaintsPage />} />

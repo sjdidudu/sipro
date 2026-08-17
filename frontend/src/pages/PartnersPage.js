@@ -2,11 +2,13 @@ import React from "react";
 import { Banknote, Handshake, ListChecks, Scale, TrendingUp } from "lucide-react";
 
 import TabPage from "@/components/patterns/TabPage";
+import EmptyState from "@/components/patterns/EmptyState";
 import PartnersListTab from "@/components/partners/PartnersListTab";
 import FeeRulesTab from "@/components/partners/FeeRulesTab";
 import PartnerAnalyticsTab from "@/components/partners/PartnerAnalyticsTab";
 import ConflictsTab from "@/components/partners/ConflictsTab";
 import FeesPanel from "@/components/marketingFee/FeesPanel";
+import { useAuth } from "@/context/AuthContext";
 import { PARTNERS } from "@/constants/testIds";
 
 /**
@@ -22,6 +24,29 @@ import { PARTNERS } from "@/constants/testIds";
  * halaman anak.
  */
 export default function PartnersPage() {
+  const { can } = useAuth();
+  // TAB hanya ditampilkan bila datanya boleh DIBACA peran ini. Dua resource berbeda bertemu
+  // di hub ini: isi tab "Tagihan Fee" datang dari `marketing_fee`, sisanya dari `partners`.
+  // Cacat nyata yang ditutup: Manajer Proyek punya `partners:view_all` tetapi TIDAK punya izin
+  // `marketing_fee` sama sekali, jadi tab "Tagihan Fee" tampil lalu isinya dijawab 403
+  // ("Akses ditolak") — TAB MATI, persis cacat yang sama dengan tombol mati. Sejak alias lama
+  // `/marketing-fee` mengalihkan ke `?hub=tagihan`, bookmark Manajer Proyek mendarat tepat di
+  // tab itu. `TabPage` memilih tab pertama yang tersedia bila kunci `?hub=` tidak ada di
+  // daftar, jadi pemakai mendarat di tab yang benar-benar bisa ia buka.
+  const seePartners = can("partners", "view");
+  const seeFees = can("marketing_fee", "view");
+  const tabs = [
+    seePartners && { key: "mitra", label: "Master Mitra", icon: Handshake,
+                     content: <PartnersListTab /> },
+    seePartners && { key: "aturan", label: "Aturan Fee", icon: ListChecks,
+                     content: <FeeRulesTab /> },
+    seeFees && { key: "tagihan", label: "Tagihan Fee", icon: Banknote, content: <FeesPanel /> },
+    seePartners && { key: "sengketa", label: "Sengketa Atribusi", icon: Scale,
+                     content: <ConflictsTab /> },
+    seePartners && { key: "analitik", label: "Analitik Mitra", icon: TrendingUp,
+                     content: <PartnerAnalyticsTab /> },
+  ].filter(Boolean);
+
   return (
     <div data-testid={PARTNERS.page} className="space-y-4">
       <div>
@@ -32,14 +57,14 @@ export default function PartnersPage() {
           2-1500, bebannya 6-1200, PPh dipotong ke 2-1300.
         </p>
       </div>
-      <TabPage paramKey="hub" testId={PARTNERS.hubTab} tabs={[
-        { key: "mitra", label: "Master Mitra", icon: Handshake, content: <PartnersListTab /> },
-        { key: "aturan", label: "Aturan Fee", icon: ListChecks, content: <FeeRulesTab /> },
-        { key: "tagihan", label: "Tagihan Fee", icon: Banknote, content: <FeesPanel /> },
-        { key: "sengketa", label: "Sengketa Atribusi", icon: Scale, content: <ConflictsTab /> },
-        { key: "analitik", label: "Analitik Mitra", icon: TrendingUp,
-          content: <PartnerAnalyticsTab /> },
-      ]} />
+      {tabs.length ? (
+        <TabPage paramKey="hub" testId={PARTNERS.hubTab} tabs={tabs} />
+      ) : (
+        <EmptyState icon={Handshake} title="Anda tidak punya akses ke data mitra & fee"
+          description="Peran Anda tidak diberi izin melihat mitra maupun tagihan fee. Hubungi
+            admin bila memang perlu — jangan sampai halaman ini menampilkan tabel kosong yang
+            seolah-olah datanya tidak ada." />
+      )}
     </div>
   );
 }

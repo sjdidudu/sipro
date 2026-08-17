@@ -17,6 +17,12 @@ import api from "@/services/apiClient";
 import { formatIDR, formatDateTimeWIB } from "@/utils/formatters";
 import { OPNAME } from "@/constants/testIds";
 
+// PENGECUALIAN SAH dari aturan "jangan salin matriks RBAC": `subcon_claims_router`
+// menolak opname atas termin yang DIAJUKAN SENDIRI kecuali pelakunya owner/super_admin —
+// aturan empat-mata itu ditulis backend memakai NAMA PERAN, bukan izin, sebab tak ada
+// izin yang bisa menyatakan "boleh memverifikasi pekerjaannya sendiri". Layar meniru
+// aturan yang SAMA supaya tombolnya tidak menjanjikan yang akan ditolak server.
+// Kalau backend berubah, ubah keduanya. Dijaga daftar izin di `verify_rbac_ui.py`.
 const OWNER_ROLES = ["owner", "super_admin"];
 
 /**

@@ -775,3 +775,42 @@ tidak bisa diagregasi, tidak bisa diberi index; dan ambang SLA adalah **angka ma
   NYATA + idempoten + INV-09, analitik = hitungan data, RBAC, **layar tidak menyalin matriks
   RBAC**). Uji-mutasi: `scripts/mutasi_41_42.py` (**16 mutasi, 32 pemeriksaan**), mendukung
   argumen selektif (`mutasi_41_42.py M7 M12`).
+
+## Lanjutan Fase 42 — Satu pintu fee + izin layar = izin server (gate ke-26)
+
+**Masalah yang dibereskan:** (a) DUA pintu untuk satu urusan fee — `/marketing-fee` punya
+halaman sendiri (tab "Pengajuan Fee" + **"Master Agen"**) sementara `/partners` adalah hub
+(tab "Tagihan Fee" + **"Master Mitra"**), jadi ada dua master mitra yang bisa berbeda diam-diam;
+(b) **32 kemunculan daftar peran hardcode** (`[...].includes(user?.role)`) di 25 berkas frontend
+— menyalin matriks RBAC ke layar, padahal matriksnya bisa diubah admin lewat Pusat Konfigurasi.
+
+- **Satu pintu fee:**
+  - `App.js` — rute `/marketing-fee` TETAP terdaftar (bookmark & notifikasi lama menyimpannya)
+    tetapi kini `<Navigate to="/partners?hub=tagihan" replace />`.
+  - Dihapus karena kembar: `pages/MarketingFeePage.js`, `components/marketingFee/AgentsPanel.js`,
+    `components/marketingFee/AgentDialog.js`, dan testId mati di `constants/testIds/marketingFee.js`.
+    `components/marketingFee/FeesPanel.js` TIDAK disalin — dipakai ulang sebagai isi tab.
+  - `PAGE_META["/marketing-fee"]` DIPERTAHANKAN: `check_nav_map` CHECK 3 & 5 menuntut setiap
+    rute punya meta, kalau tidak rute itu dianggap "dead page".
+- **Izin layar = izin server:**
+  - 24 layar memakai `can(resource, action)` dari `GET /auth/me` (helper Fase 39b di
+    `context/AuthContext.js`, meniru `rbac._permitted`: `manage`/`all` = boleh apa saja,
+    `view` dipenuhi `view_all`/`view_own`).
+  - Pemetaan diambil dari `require_permission(...)` yang benar-benar dipakai backend, mis.
+    tahan unit = `deals:create` (bukan `reservations`), template pembangunan =
+    `construction:approve` (menyamai `SUPERVISOR_ROLES` backend), buka periode = `gl:approve`.
+  - DUA pemakaian nama peran DIPERTAHANKAN dan wajib berpenanda `PENGECUALIAN SAH`:
+    `pages/ConstructionPage.js` (tab BAWAAN per peran, bukan gerbang izin) dan
+    `components/subcon/ClaimOpnameSheet.js` (meniru aturan empat-mata backend yang memang
+    ditulis dengan nama peran).
+- **Gates:** total **26** — baru `verify_rbac_ui.py`: (1) tidak ada matriks RBAC yang disalin
+  ke layar (pengecualian wajib berpenjelasan), (2) setiap `can("r","a")` di layar benar-benar
+  dipaksakan backend (130 pasangan `require_permission` dibaca dari sumbernya — menangkap salah
+  ketik yang membuat tombol hilang selamanya tanpa error), (3) **bukti API**: peran tanpa izin
+  dijawab 403 dan peran yang punya izin BUKAN 403. Uji-mutasi `mutasi_41_42.py` kini
+  **21 mutasi / 42 pemeriksaan** (tambahan M10b, M17–M20), mendukung argumen selektif.
+- **Cacat nyata yang ikut terbetulkan:** Manajer Keuangan tidak pernah melihat "Buka kembali
+  periode" padahal punya `gl:manage`; Pelaksana Lapangan tidak pernah melihat "Perbarui Status"
+  izin karena `permits:create` dan `permits:update` digabung jadi satu bendera.
+- **Temuan terbuka (dilaporkan, bukan diperbaiki):** resource `reservations` ada di matriks RBAC
+  tetapi tidak dipaksakan endpoint mana pun — dicetak `verify_rbac_ui` sebagai CATATAN.
