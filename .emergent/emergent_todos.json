@@ -1,0 +1,46 @@
+[
+  {
+    "content": "Phase 0: Restore repo into /app (preserve container .env), install deps, seed DB, verify login + baseline gates (found real baseline was 22/23, not 23/23)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1 (resume stopping point): Fix scripts/verify_41.py syntax error (broken code_only docstring) + comment-aware regex + non-flaky sync assertion",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 2: verify_41.py green — also fixed a wrong-target gate assertion (sla_state only existed in a comment)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 3: verify_partner.py green — fixed missing SSOT group partner_tax_type (500→400) + wrong role masking the idempotency test",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 4: Fix audit_forms_deep regression — 5 findings fixed at root (bank/unit_type SSOT dropdowns, SLA options from SSOT, aria-label, date-input E1 precision)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 5: Create scripts/mutasi_41_42.py — 16 mutations, 32 checks, all caught + all recover green",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 6: Register verify_41.py + verify_partner.py in run_all_gates.sh — OVERALL PASS (25 gates), verified 3x",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 7: Verify Fase 41/42 UI + fix 2 dead CTAs and RBAC-matrix duplication in 6 screens; lock with new gate checks + mutations M15/M16",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 8: Full mutation suite 32/32 confirmed",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 9: E2E multi-role testing via testing_agent_v3 — 0 critical bugs, 0 UI bugs, all user stories PASS; 1 reported issue verified as FALSE POSITIVE",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 10: Update plan.md, test_result.md, memory/test_credentials.md, CODEBASE_MAP.md, docs/v2 nav map + partner spec DoD",
+    "status": "completed"
+  }
+]
